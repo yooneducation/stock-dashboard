@@ -59,6 +59,7 @@
             outline: none;
             backdrop-filter: blur(10px);
             -webkit-backdrop-filter: blur(10px);
+            cursor: pointer;
         }
 
         .filter-container select option {
@@ -136,6 +137,7 @@
         /* Table Container */
         .table-container {
             overflow-x: auto;
+            max-height: 460px;
         }
 
         table {
@@ -153,6 +155,9 @@
             color: var(--gold-primary);
             font-weight: 600;
             background: rgba(0, 0, 0, 0.2);
+            position: sticky;
+            top: 0;
+            backdrop-filter: blur(10px);
         }
 
         tr:hover {
@@ -161,6 +166,11 @@
 
         .positive { color: #00e676; }
         .negative { color: #ff1744; }
+
+        /* Scrollbar styles */
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: rgba(255, 255, 255, 0.02); border-radius: 4px; }
+        ::-webkit-scrollbar-thumb { background: rgba(212, 175, 55, 0.5); border-radius: 4px; }
 
         footer {
             margin-top: 3rem;
@@ -176,9 +186,7 @@
         <h1>윤에듀케이션 주식 포트폴리오</h1>
         <div class="filter-container">
             <select id="stockFilter" onchange="filterData()">
-                <option value="all">전체 종목 비교</option>
-                <option value="stock1">종목 A (기본 시트)</option>
-                <option value="stock2">종목 B (별도 시트)</option>
+                <option value="all">데이터 불러오는 중...</option>
             </select>
         </div>
     </header>
@@ -199,7 +207,7 @@
             <table>
                 <thead>
                     <tr>
-                        <th>구분</th>
+                        <th>종목명</th>
                         <th>1개월</th>
                         <th>3개월</th>
                         <th>6개월</th>
@@ -216,52 +224,77 @@
     </footer>
 
     <script>
-        // 첫 번째 시트(종목 A) URL
-        const csvUrl1 = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQBj6JRux8kWW77YrxMFlNojH_oBEqjY7XgEcZkWsuWGgydF4W4BAf2dpMw7IwyWE3d6wZ3mNmiMwAe/pub?output=csv";
-        
-        // 두 번째 시트(종목 B) URL - 실제 환경에서는 해당 시트의 gid 값을 입력해야 합니다. (예: &gid=123456789)
-        // 현재는 데모를 위해 동일한 URL에 임의의 변동성을 주어 시뮬레이션 합니다.
-        const csvUrl2 = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQBj6JRux8kWW77YrxMFlNojH_oBEqjY7XgEcZkWsuWGgydF4W4BAf2dpMw7IwyWE3d6wZ3mNmiMwAe/pub?output=csv";
+        // 사용자가 제공한 원본 구글 시트 URL
+        const pubhtmlUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQBj6JRux8kWW77YrxMFlNojH_oBEqjY7XgEcZkWsuWGgydF4W4BAf2dpMw7IwyWE3d6wZ3mNmiMwAe/pubhtml";
+        const csvBaseUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQBj6JRux8kWW77YrxMFlNojH_oBEqjY7XgEcZkWsuWGgydF4W4BAf2dpMw7IwyWE3d6wZ3mNmiMwAe/pub";
 
         let chartInstance = null;
-        let globalData = { stock1: null, stock2: null };
+        let globalData = [];
+
+        // 차트 렌더링을 위한 다이내믹 색상 팔레트 (골드, 블루, 퍼플, 등)
+        const colorPalette = [
+            { border: '#d4af37', bg: 'rgba(212, 175, 55, 0.1)' }, // Gold
+            { border: '#4facfe', bg: 'rgba(79, 172, 254, 0.1)' }, // Blue
+            { border: '#8E2DE2', bg: 'rgba(142, 45, 226, 0.1)' }, // Purple
+            { border: '#00e676', bg: 'rgba(0, 230, 118, 0.1)' },  // Light Green
+            { border: '#ff7eb3', bg: 'rgba(255, 126, 179, 0.1)' }, // Pink
+            { border: '#ff9a44', bg: 'rgba(255, 154, 68, 0.1)' }   // Orange
+        ];
 
         async function loadData() {
             try {
-                const [res1, res2] = await Promise.all([
-                    fetchCSV(csvUrl1),
-                    fetchCSV(csvUrl2)
-                ]);
+                // 1. CORS 프록시를 통해 pubhtml HTML 소스를 가져와서 시트 목록(이름 및 gid)을 파싱합니다.
+                const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(pubhtmlUrl + "?t=" + Date.now())}`;
+                const response = await fetch(proxyUrl);
+                const htmlText = await response.text();
 
-                // 종목 B의 경우 데모를 위해 가격을 약간 조정 (실제 별도 gid URL 적용 시 제거)
-                const adjustedRes2 = res2.map(item => ({
-                    Date: item.Date,
-                    Close: item.Close * (0.8 + Math.random() * 0.4) 
-                }));
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(htmlText, "text/html");
+                const sheetItems = doc.querySelectorAll('li[id^="sheet-button-"]');
 
-                globalData.stock1 = processStockData(res1, '종목 A');
-                globalData.stock2 = processStockData(adjustedRes2, '종목 B');
+                const sheets = [];
+                sheetItems.forEach(item => {
+                    const gid = item.id.replace('sheet-button-', '');
+                    const name = item.innerText.trim();
+                    sheets.push({ gid, name });
+                });
 
+                if (sheets.length === 0) {
+                    throw new Error("시트 정보를 찾을 수 없습니다.");
+                }
+
+                // 2. 추출한 각각의 시트(gid)에 대해 CSV 데이터를 동시에 비동기로 가져옵니다.
+                const promises = sheets.map(sheet => {
+                    return new Promise((resolve, reject) => {
+                        const csvUrl = `${csvBaseUrl}?gid=${sheet.gid}&single=true&output=csv`;
+                        Papa.parse(csvUrl, {
+                            download: true,
+                            header: true,
+                            dynamicTyping: true,
+                            skipEmptyLines: true,
+                            complete: (results) => resolve(processStockData(results.data, sheet.name)),
+                            error: (error) => reject(error)
+                        });
+                    });
+                });
+
+                const results = await Promise.all(promises);
+                // 유효한 데이터만 필터링
+                globalData = results.filter(data => data && data.prices.length > 0);
+
+                // 3. 드롭다운 필터 및 대시보드 업데이트
+                populateDropdown(globalData);
                 updateDashboard();
+
             } catch (error) {
                 console.error("데이터 로딩 실패:", error);
+                document.getElementById('stockFilter').innerHTML = '<option value="">데이터를 불러오지 못했습니다</option>';
             }
         }
 
-        function fetchCSV(url) {
-            return new Promise((resolve, reject) => {
-                Papa.parse(url, {
-                    download: true,
-                    header: true,
-                    dynamicTyping: true,
-                    skipEmptyLines: true,
-                    complete: (results) => resolve(results.data),
-                    error: (error) => reject(error)
-                });
-            });
-        }
-
         function processStockData(rawData, name) {
+            if (!rawData || rawData.length === 0) return null;
+            
             const sortedData = rawData.sort((a, b) => new Date(a.Date) - new Date(b.Date));
             const dates = sortedData.map(d => d.Date);
             const prices = sortedData.map(d => d.Close);
@@ -271,6 +304,18 @@
             const low = Math.min(...prices);
 
             return { name, dates, prices, current, high, low };
+        }
+
+        function populateDropdown(dataArray) {
+            const select = document.getElementById('stockFilter');
+            select.innerHTML = '<option value="all">전체 종목 비교</option>';
+            
+            dataArray.forEach(stock => {
+                const option = document.createElement('option');
+                option.value = stock.name;
+                option.textContent = stock.name;
+                select.appendChild(option);
+            });
         }
 
         function formatCurrency(value) {
@@ -284,39 +329,39 @@
             return (((current - past) / past) * 100).toFixed(2);
         }
 
-        function renderSummaryCards(stock1, stock2, filter) {
+        function renderSummaryCards(selectedStocks) {
             const container = document.getElementById('summaryCards');
             container.innerHTML = '';
 
-            const createCard = (stock) => `
-                <div class="glass-card summary-box">
-                    <h2>${stock.name}</h2>
-                    <div class="price-grid">
-                        <div class="price-item">
-                            <h3>현재가</h3>
-                            <p>${formatCurrency(stock.current)}</p>
-                        </div>
-                        <div class="price-item">
-                            <h3>최고가</h3>
-                            <p>${formatCurrency(stock.high)}</p>
-                        </div>
-                        <div class="price-item">
-                            <h3>최저가</h3>
-                            <p>${formatCurrency(stock.low)}</p>
+            selectedStocks.forEach(stock => {
+                const cardHtml = `
+                    <div class="glass-card summary-box">
+                        <h2>${stock.name}</h2>
+                        <div class="price-grid">
+                            <div class="price-item">
+                                <h3>현재가</h3>
+                                <p>${formatCurrency(stock.current)}</p>
+                            </div>
+                            <div class="price-item">
+                                <h3>최고가</h3>
+                                <p>${formatCurrency(stock.high)}</p>
+                            </div>
+                            <div class="price-item">
+                                <h3>최저가</h3>
+                                <p>${formatCurrency(stock.low)}</p>
+                            </div>
                         </div>
                     </div>
-                </div>
-            `;
-
-            if (filter === 'all' || filter === 'stock1') container.innerHTML += createCard(stock1);
-            if (filter === 'all' || filter === 'stock2') container.innerHTML += createCard(stock2);
+                `;
+                container.innerHTML += cardHtml;
+            });
         }
 
-        function renderReturnsTable(stock1, stock2, filter) {
+        function renderReturnsTable(selectedStocks) {
             const tbody = document.getElementById('returnTableBody');
             tbody.innerHTML = '';
 
-            const createRow = (stock) => {
+            selectedStocks.forEach(stock => {
                 // 1달(약 20거래일), 3달(60거래일), 6달(120거래일) 근사치
                 const r1m = calculateReturn(stock.prices, 20);
                 const r3m = calculateReturn(stock.prices, 60);
@@ -330,7 +375,7 @@
                     return `<span class="${cls}">${sign}${rate}%</span>`;
                 };
 
-                return `
+                const tr = `
                     <tr>
                         <td><strong>${stock.name}</strong></td>
                         <td>${formatRate(r1m)}</td>
@@ -338,43 +383,36 @@
                         <td>${formatRate(r6m)}</td>
                     </tr>
                 `;
-            };
-
-            if (filter === 'all' || filter === 'stock1') tbody.innerHTML += createRow(stock1);
-            if (filter === 'all' || filter === 'stock2') tbody.innerHTML += createRow(stock2);
+                tbody.innerHTML += tr;
+            });
         }
 
-        function renderChart(stock1, stock2, filter) {
+        function renderChart(selectedStocks) {
             const ctx = document.getElementById('priceChart').getContext('2d');
             if (chartInstance) chartInstance.destroy();
 
-            const datasets = [];
-            const commonDates = stock1.dates; // 날짜 기준은 첫번째 시트로 가정
-
-            if (filter === 'all' || filter === 'stock1') {
-                datasets.push({
-                    label: stock1.name,
-                    data: stock1.prices,
-                    borderColor: '#d4af37', // 골드
-                    backgroundColor: 'rgba(212, 175, 55, 0.1)',
+            const datasets = selectedStocks.map((stock, index) => {
+                const colorMap = colorPalette[index % colorPalette.length];
+                return {
+                    label: stock.name,
+                    data: stock.prices,
+                    borderColor: colorMap.border,
+                    backgroundColor: colorMap.bg,
                     borderWidth: 2,
                     pointRadius: 0,
+                    pointHoverRadius: 6,
                     fill: true,
                     tension: 0.3
-                });
-            }
+                };
+            });
 
-            if (filter === 'all' || filter === 'stock2') {
-                datasets.push({
-                    label: stock2.name,
-                    data: stock2.prices,
-                    borderColor: '#4facfe', // 대비를 위한 스카이블루/실버톤
-                    backgroundColor: 'rgba(79, 172, 254, 0.1)',
-                    borderWidth: 2,
-                    pointRadius: 0,
-                    fill: true,
-                    tension: 0.3
-                });
+            // 기준 날짜 설정 (가장 긴 날짜 배열을 가진 종목 기준)
+            let commonDates = [];
+            if (selectedStocks.length > 0) {
+                const longestStock = selectedStocks.reduce((prev, current) => 
+                    (prev.dates.length > current.dates.length) ? prev : current
+                );
+                commonDates = longestStock.dates;
             }
 
             chartInstance = new Chart(ctx, {
@@ -390,6 +428,11 @@
                     scales: {
                         x: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#a0a0b0' } },
                         y: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#a0a0b0' } }
+                    },
+                    interaction: {
+                        mode: 'nearest',
+                        axis: 'x',
+                        intersect: false
                     }
                 }
             });
@@ -400,12 +443,22 @@
         }
 
         function updateDashboard() {
-            const filter = document.getElementById('stockFilter').value;
-            renderSummaryCards(globalData.stock1, globalData.stock2, filter);
-            renderReturnsTable(globalData.stock1, globalData.stock2, filter);
-            renderChart(globalData.stock1, globalData.stock2, filter);
+            const filterValue = document.getElementById('stockFilter').value;
+            let selectedStocks = [];
+
+            if (filterValue === 'all') {
+                selectedStocks = globalData;
+            } else {
+                const found = globalData.find(d => d.name === filterValue);
+                if (found) selectedStocks.push(found);
+            }
+
+            renderSummaryCards(selectedStocks);
+            renderReturnsTable(selectedStocks);
+            renderChart(selectedStocks);
         }
 
+        // 스크립트 실행 시작
         window.onload = loadData;
     </script>
 </body>
