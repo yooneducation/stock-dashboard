@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>삼성전자 주가 대시보드</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+    <style>
+        :root {
+            --bg-color: #0d0d12;
+            --text-color: #f1f1f1;
+            --card-bg: rgba(255, 255, 255, 0.05);
+            --card-border: rgba(255, 255, 255, 0.1);
+            --point-blue: #4facfe;
+            --point-purple: #8E2DE2;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            background-image: radial-gradient(circle at top right, rgba(79, 172, 254, 0.15), transparent 40%),
+                              radial-gradient(circle at bottom left, rgba(142, 45, 226, 0.15), transparent 40%);
+            color: var(--text-color);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            padding: 2rem;
+        }
+
+        header {
+            margin-bottom: 2rem;
+            text-align: center;
+        }
+
+        h1 {
+            font-size: 2.5rem;
+            background: linear-gradient(to right, var(--point-blue), var(--point-purple));
+            -webkit-background-clip: text;
+            color: transparent;
+            display: inline-block;
+        }
+
+        /* Glassmorphism Classes */
+        .glass-card {
+            background: var(--card-bg);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid var(--card-border);
+            border-radius: 16px;
+            padding: 1.5rem;
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
+        }
+
+        /* Summary Section */
+        .summary-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .summary-box {
+            text-align: center;
+        }
+
+        .summary-box h3 {
+            font-size: 1rem;
+            color: #a0a0b0;
+            margin-bottom: 0.5rem;
+            font-weight: 500;
+        }
+
+        .summary-box p {
+            font-size: 1.8rem;
+            font-weight: bold;
+            color: #ffffff;
+        }
+
+        .summary-box .change {
+            font-size: 0.9rem;
+            margin-top: 0.5rem;
+        }
+        .positive { color: #00e676; }
+        .negative { color: #ff1744; }
+
+        /* Dashboard Layout */
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            gap: 1.5rem;
+            flex: 1;
+        }
+
+        @media (max-width: 900px) {
+            .dashboard-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        /* Chart Container */
+        .chart-container {
+            position: relative;
+            height: 400px;
+            width: 100%;
+        }
+
+        /* Table Container */
+        .table-container {
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        th, td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid var(--card-border);
+        }
+
+        th {
+            position: sticky;
+            top: 0;
+            background: rgba(20, 20, 30, 0.9);
+            backdrop-filter: blur(10px);
+            color: var(--point-blue);
+            font-weight: 600;
+        }
+
+        tr:hover {
+            background: rgba(255, 255, 255, 0.02);
+        }
+
+        /* Scrollbar styles */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.02); 
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: var(--point-purple); 
+            border-radius: 4px;
+        }
+
+        /* Footer */
+        footer {
+            margin-top: 3rem;
+            text-align: center;
+            font-size: 0.9rem;
+            color: #888;
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <h1>삼성전자 주가 대시보드</h1>
+    </header>
+
+    <div class="summary-container">
+        <div class="glass-card summary-box">
+            <h3>현재가 (최근 종가)</h3>
+            <p id="currentPrice">-</p>
+        </div>
+        <div class="glass-card summary-box">
+            <h3>최고가</h3>
+            <p id="highPrice">-</p>
+        </div>
+        <div class="glass-card summary-box">
+            <h3>최저가</h3>
+            <p id="lowPrice">-</p>
+        </div>
+        <div class="glass-card summary-box">
+            <h3>평균가</h3>
+            <p id="avgPrice">-</p>
+        </div>
+        <div class="glass-card summary-box">
+            <h3>최근 30일 변동률</h3>
+            <p id="changeRate" class="change">-</p>
+        </div>
+    </div>
+
+    <div class="dashboard-grid">
+        <div class="glass-card">
+            <h3 style="margin-bottom: 1rem; color: #a0a0b0;">일별 종가 추이</h3>
+            <div class="chart-container">
+                <canvas id="priceChart"></canvas>
+            </div>
+        </div>
+        <div class="glass-card table-container">
+            <h3 style="margin-bottom: 1rem; color: #a0a0b0;">거래 데이터</h3>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Close</th>
+                    </tr>
+                </thead>
+                <tbody id="dataTableBody">
+                    </tbody>
+            </table>
+        </div>
+    </div>
+
+    <footer>
+        © [윤에듀케이션]. All Rights Reserved.
+    </footer>
+
+    <script>
+        // CSV URL (pubhtml 대신 pub?output=csv 형식 사용)
+        const csvUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQBj6JRux8kWW77YrxMFlNojH_oBEqjY7XgEcZkWsuWGgydF4W4BAf2dpMw7IwyWE3d6wZ3mNmiMwAe/pub?output=csv";
+
+        Papa.parse(csvUrl, {
+            download: true,
+            header: true,
+            dynamicTyping: true,
+            skipEmptyLines: true,
+            complete: function(results) {
+                const data = results.data;
+                
+                // 데이터 정렬 (오래된 날짜 -> 최신 날짜 기준이라고 가정, 역순일 경우 뒤집기)
+                data.sort((a, b) => new Date(a.Date) - new Date(b.Date));
+
+                const dates = data.map(row => row.Date);
+                const prices = data.map(row => row.Close);
+                
+                updateSummary(prices);
+                renderChart(dates, prices);
+                renderTable(data);
+            },
+            error: function(error) {
+                console.error("데이터 로딩 중 오류 발생:", error);
+                alert("데이터를 불러오는데 실패했습니다.");
+            }
+        });
+
+        function formatCurrency(value) {
+            return value.toLocaleString('ko-KR') + '원';
+        }
+
+        function updateSummary(prices) {
+            if (!prices || prices.length === 0) return;
+
+            const current = prices[prices.length - 1];
+            const max = Math.max(...prices);
+            const min = Math.min(...prices);
+            const avg = prices.reduce((a, b) => a + b, 0) / prices.length;
+            
+            // 최근 30일(데이터 포인트 기준) 변동률 계산
+            const pastIndex = prices.length >= 30 ? prices.length - 30 : 0;
+            const pastPrice = prices[pastIndex];
+            const changeRate = ((current - pastPrice) / pastPrice) * 100;
+
+            document.getElementById('currentPrice').innerText = formatCurrency(current);
+            document.getElementById('highPrice').innerText = formatCurrency(max);
+            document.getElementById('lowPrice').innerText = formatCurrency(min);
+            document.getElementById('avgPrice').innerText = formatCurrency(Math.round(avg));
+
+            const rateEl = document.getElementById('changeRate');
+            const sign = changeRate > 0 ? '+' : '';
+            rateEl.innerText = `${sign}${changeRate.toFixed(2)}%`;
+            rateEl.className = `change ${changeRate >= 0 ? 'positive' : 'negative'}`;
+        }
+
+        function renderChart(dates, prices) {
+            const ctx = document.getElementById('priceChart').getContext('2d');
+            
+            // 그라데이션 라인 효과
+            const gradient = ctx.createLinearGradient(0, 0, 0, 400);
+            gradient.addColorStop(0, 'rgba(79, 172, 254, 0.5)');
+            gradient.addColorStop(1, 'rgba(142, 45, 226, 0.05)');
+
+            new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: dates,
+                    datasets: [{
+                        label: '종가 (Close)',
+                        data: prices,
+                        borderColor: '#4facfe',
+                        backgroundColor: gradient,
+                        borderWidth: 2,
+                        pointRadius: 0,
+                        pointHoverRadius: 6,
+                        fill: true,
+                        tension: 0.3
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            mode: 'index',
+                            intersect: false,
+                            backgroundColor: 'rgba(20, 20, 30, 0.9)',
+                            titleColor: '#4facfe',
+                            bodyColor: '#fff',
+                            borderColor: 'rgba(255,255,255,0.1)',
+                            borderWidth: 1
+                        }
+                    },
+                    scales: {
+                        x: {
+                            grid: { color: 'rgba(255,255,255,0.05)' },
+                            ticks: { color: '#a0a0b0', maxTicksLimit: 10 }
+                        },
+                        y: {
+                            grid: { color: 'rgba(255,255,255,0.05)' },
+                            ticks: { color: '#a0a0b0' }
+                        }
+                    },
+                    interaction: {
+                        mode: 'nearest',
+                        axis: 'x',
+                        intersect: false
+                    }
+                }
+            });
+        }
+
+        function renderTable(data) {
+            const tbody = document.getElementById('dataTableBody');
+            // 최신 데이터가 위로 오도록 역순으로 테이블 구성
+            const reversedData = [...data].reverse();
+            
+            reversedData.forEach(row => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td>${row.Date}</td>
+                    <td>${formatCurrency(row.Close)}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+    </script>
+</body>
+</html>
