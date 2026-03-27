@@ -3,463 +3,523 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>윤에듀케이션 주식 포트폴리오</title>
+    <title>윤에듀케이션 주식 포트폴리오 비교 대시보드</title>
+    
+    <!-- Tailwind CSS (모던하고 깔끔한 디자인을 위한 유틸리티 프레임워크) -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Chart.js (차트 렌더링 라이브러리) -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+    <!-- PapaParse (CSV 파싱 라이브러리) -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+
     <style>
-        :root {
-            --bg-navy: #0b132b;
-            --text-light: #f8f9fa;
-            --gold-primary: #d4af37;
-            --gold-secondary: #f3e5ab;
-            --card-bg: rgba(255, 255, 255, 0.05);
-            --card-border: rgba(255, 255, 255, 0.1);
-        }
-
-        * {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-        }
-
+        /* 기본 폰트 및 배경색 설정 */
         body {
-            background-color: var(--bg-navy);
-            background-image: radial-gradient(circle at top right, rgba(212, 175, 55, 0.1), transparent 40%),
-                              radial-gradient(circle at bottom left, rgba(28, 49, 94, 0.5), transparent 40%);
-            color: var(--text-light);
-            min-height: 100vh;
-            display: flex;
-            flex-direction: column;
-            padding: 2rem;
+            font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background-color: #f3f4f6;
+            color: #1f2937;
         }
-
-        header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 2rem;
-            flex-wrap: wrap;
-            gap: 1rem;
+        /* 로딩 스피너 애니메이션 */
+        .loader {
+            border: 4px solid #e5e7eb;
+            border-top: 4px solid #3b82f6;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
         }
-
-        h1 {
-            font-size: 2.2rem;
-            color: var(--gold-primary);
-            text-shadow: 0 2px 4px rgba(0,0,0,0.3);
-        }
-
-        .filter-container select {
-            background: rgba(255, 255, 255, 0.1);
-            color: var(--text-light);
-            border: 1px solid var(--card-border);
-            padding: 0.5rem 1rem;
-            border-radius: 8px;
-            font-size: 1rem;
-            outline: none;
-            backdrop-filter: blur(10px);
-            -webkit-backdrop-filter: blur(10px);
-            cursor: pointer;
-        }
-
-        .filter-container select option {
-            background: var(--bg-navy);
-            color: var(--text-light);
-        }
-
-        /* Glassmorphism Cards */
-        .glass-card {
-            background: var(--card-bg);
-            backdrop-filter: blur(16px);
-            -webkit-backdrop-filter: blur(16px);
-            border: 1px solid var(--card-border);
-            border-radius: 16px;
-            padding: 1.5rem;
-            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
-        }
-
-        /* Summary Section */
-        .summary-container {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-            gap: 1.5rem;
-            margin-bottom: 2rem;
-        }
-
-        .summary-box h2 {
-            font-size: 1.2rem;
-            color: var(--gold-secondary);
-            margin-bottom: 1rem;
-            border-bottom: 1px solid var(--card-border);
-            padding-bottom: 0.5rem;
-        }
-
-        .price-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr 1fr;
-            gap: 1rem;
-            text-align: center;
-        }
-
-        .price-item h3 {
-            font-size: 0.85rem;
-            color: #a0a0b0;
-            margin-bottom: 0.3rem;
-            font-weight: 500;
-        }
-
-        .price-item p {
-            font-size: 1.2rem;
-            font-weight: bold;
-            color: #ffffff;
-        }
-
-        /* Dashboard Layout */
-        .dashboard-grid {
-            display: grid;
-            grid-template-columns: 2fr 1fr;
-            gap: 1.5rem;
-            flex: 1;
-        }
-
-        @media (max-width: 900px) {
-            .dashboard-grid {
-                grid-template-columns: 1fr;
-            }
-        }
-
-        .chart-container {
-            position: relative;
-            height: 400px;
-            width: 100%;
-        }
-
-        /* Table Container */
-        .table-container {
-            overflow-x: auto;
-            max-height: 460px;
-        }
-
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            text-align: center;
-        }
-
-        th, td {
-            padding: 12px;
-            border-bottom: 1px solid var(--card-border);
-        }
-
-        th {
-            color: var(--gold-primary);
-            font-weight: 600;
-            background: rgba(0, 0, 0, 0.2);
-            position: sticky;
-            top: 0;
-            backdrop-filter: blur(10px);
-        }
-
-        tr:hover {
-            background: rgba(255, 255, 255, 0.03);
-        }
-
-        .positive { color: #00e676; }
-        .negative { color: #ff1744; }
-
-        /* Scrollbar styles */
-        ::-webkit-scrollbar { width: 8px; }
-        ::-webkit-scrollbar-track { background: rgba(255, 255, 255, 0.02); border-radius: 4px; }
-        ::-webkit-scrollbar-thumb { background: rgba(212, 175, 55, 0.5); border-radius: 4px; }
-
-        footer {
-            margin-top: 3rem;
-            text-align: center;
-            font-size: 0.9rem;
-            color: #888;
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
         }
     </style>
 </head>
-<body>
+<body class="min-h-screen flex flex-col">
 
-    <header>
-        <h1>윤에듀케이션 주식 포트폴리오</h1>
-        <div class="filter-container">
-            <select id="stockFilter" onchange="filterData()">
-                <option value="all">데이터 불러오는 중...</option>
-            </select>
+    <!-- 메인 대시보드 컨테이너 -->
+    <div class="container mx-auto px-4 py-8 flex-grow">
+        
+        <!-- 헤더 및 제목 -->
+        <header class="mb-8 border-b pb-4">
+            <h1 class="text-3xl font-bold text-gray-800 flex items-center gap-2">
+                📈 반도체 대장주 비교 대시보드
+            </h1>
+            <p class="text-gray-500 mt-2">구글 시트 실시간 데이터를 바탕으로 두 종목의 성과를 비교합니다.</p>
+        </header>
+
+        <!-- 필터 영역 (종목 선택 드롭다운) -->
+        <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-100 mb-6 flex flex-col sm:flex-row gap-4 items-center justify-between">
+            <div class="flex flex-col sm:flex-row gap-4 w-full sm:w-auto">
+                <div class="flex items-center gap-2">
+                    <label for="stockSelect1" class="font-semibold text-gray-700 whitespace-nowrap">비교 종목 1:</label>
+                    <select id="stockSelect1" class="border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-blue-500 focus:outline-none w-full sm:w-48">
+                        <!-- 옵션은 자바스크립트로 동적 생성됩니다 -->
+                    </select>
+                </div>
+                <div class="flex items-center gap-2">
+                    <label for="stockSelect2" class="font-semibold text-gray-700 whitespace-nowrap">비교 종목 2:</label>
+                    <select id="stockSelect2" class="border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-rose-500 focus:outline-none w-full sm:w-48">
+                        <!-- 옵션은 자바스크립트로 동적 생성됩니다 -->
+                    </select>
+                </div>
+            </div>
+            
+            <!-- 데이터 로딩 표시기 -->
+            <div id="loadingIndicator" class="hidden flex items-center gap-3">
+                <div class="loader"></div>
+                <span class="text-gray-500 font-medium">데이터 불러오는 중...</span>
+            </div>
         </div>
-    </header>
 
-    <div class="summary-container" id="summaryCards">
+        <!-- 요약 카드 영역 (현재가, 최고가, 최저가) -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+            
+            <!-- 종목 1 요약 카드 -->
+            <div class="bg-white rounded-xl shadow-sm border-t-4 border-t-blue-500 p-6">
+                <h2 id="card1Name" class="text-xl font-bold text-gray-800 mb-4">종목 1</h2>
+                <div class="grid grid-cols-3 gap-4 text-center">
+                    <div class="bg-gray-50 p-3 rounded-lg">
+                        <p class="text-sm text-gray-500 mb-1">현재가</p>
+                        <p id="card1Current" class="text-lg font-bold text-blue-600">-</p>
+                    </div>
+                    <div class="bg-gray-50 p-3 rounded-lg">
+                        <p class="text-sm text-gray-500 mb-1">최고가(기간내)</p>
+                        <p id="card1High" class="text-lg font-bold text-gray-700">-</p>
+                    </div>
+                    <div class="bg-gray-50 p-3 rounded-lg">
+                        <p class="text-sm text-gray-500 mb-1">최저가(기간내)</p>
+                        <p id="card1Low" class="text-lg font-bold text-gray-700">-</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 종목 2 요약 카드 -->
+            <div class="bg-white rounded-xl shadow-sm border-t-4 border-t-rose-500 p-6">
+                <h2 id="card2Name" class="text-xl font-bold text-gray-800 mb-4">종목 2</h2>
+                <div class="grid grid-cols-3 gap-4 text-center">
+                    <div class="bg-gray-50 p-3 rounded-lg">
+                        <p class="text-sm text-gray-500 mb-1">현재가</p>
+                        <p id="card2Current" class="text-lg font-bold text-rose-600">-</p>
+                    </div>
+                    <div class="bg-gray-50 p-3 rounded-lg">
+                        <p class="text-sm text-gray-500 mb-1">최고가(기간내)</p>
+                        <p id="card2High" class="text-lg font-bold text-gray-700">-</p>
+                    </div>
+                    <div class="bg-gray-50 p-3 rounded-lg">
+                        <p class="text-sm text-gray-500 mb-1">최저가(기간내)</p>
+                        <p id="card2Low" class="text-lg font-bold text-gray-700">-</p>
+                    </div>
+                </div>
+            </div>
+            
         </div>
 
-    <div class="dashboard-grid">
-        <div class="glass-card">
-            <h3 style="margin-bottom: 1rem; color: var(--gold-secondary);">주가 추이 비교</h3>
-            <div class="chart-container">
+        <!-- 차트 영역 -->
+        <div class="bg-white p-6 rounded-xl shadow-sm mb-6">
+            <h3 class="text-lg font-bold text-gray-800 mb-4">주가 추이 비교</h3>
+            <div class="relative h-80 w-full">
                 <canvas id="priceChart"></canvas>
             </div>
         </div>
-        
-        <div class="glass-card table-container">
-            <h3 style="margin-bottom: 1rem; color: var(--gold-secondary);">기간별 수익률</h3>
-            <table>
+
+        <!-- 기간별 수익률 비교 테이블 -->
+        <div class="bg-white p-6 rounded-xl shadow-sm mb-6 overflow-x-auto">
+            <h3 class="text-lg font-bold text-gray-800 mb-4">기간별 수익률 비교</h3>
+            <table class="w-full text-left border-collapse">
                 <thead>
-                    <tr>
-                        <th>종목명</th>
-                        <th>1개월</th>
-                        <th>3개월</th>
-                        <th>6개월</th>
+                    <tr class="bg-gray-50 border-b border-gray-200">
+                        <th class="py-3 px-4 font-semibold text-gray-600">종목명</th>
+                        <th class="py-3 px-4 font-semibold text-gray-600 text-right">최근 1개월</th>
+                        <th class="py-3 px-4 font-semibold text-gray-600 text-right">최근 3개월</th>
+                        <th class="py-3 px-4 font-semibold text-gray-600 text-right">최근 6개월</th>
                     </tr>
                 </thead>
                 <tbody id="returnTableBody">
-                    </tbody>
+                    <!-- 자바스크립트에서 테이블 행이 동적으로 주입됩니다. -->
+                </tbody>
             </table>
         </div>
+
     </div>
 
-    <footer>
-        © [윤에듀케이션]. All Rights Reserved.
+    <!-- 푸터 (지정된 저작권 문구 포함) -->
+    <footer class="bg-white border-t border-gray-200 py-6 mt-auto">
+        <div class="container mx-auto text-center text-gray-500 text-sm">
+            © 2026 with dream consulting. All Rights Reserved.
+        </div>
     </footer>
 
+    <!-- 기능 스크립트 -->
     <script>
-        // 사용자가 제공한 원본 구글 시트 URL
-        const pubhtmlUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQBj6JRux8kWW77YrxMFlNojH_oBEqjY7XgEcZkWsuWGgydF4W4BAf2dpMw7IwyWE3d6wZ3mNmiMwAe/pubhtml";
-        const csvBaseUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQBj6JRux8kWW77YrxMFlNojH_oBEqjY7XgEcZkWsuWGgydF4W4BAf2dpMw7IwyWE3d6wZ3mNmiMwAe/pub";
+        // 1. 데이터 소스 정의 (pubhtml 링크를 CSV 다운로드용 pub 형식으로 변환)
+        // 사용자가 제공한 URL의 형식을 분석하여 자동으로 CSV Export URL로 구성합니다.
+        const baseUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQBj6JRux8kWW77YrxMFlNojH_oBEqjY7XgEcZkWsuWGgydF4W4BAf2dpMw7IwyWE3d6wZ3mNmiMwAe/pub?single=true&output=csv&gid=";
+        
+        const stockSources = {
+            "삼성전자": baseUrl + "0",
+            "하이닉스": baseUrl + "14623856",
+            "현대차": baseUrl + "655549930",
+            "애플": baseUrl + "152264729",
+            "MS": baseUrl + "1203199159",
+            "구글": baseUrl + "663970395",
+            "테슬라": baseUrl + "39583950",
+            "엔비디아": baseUrl + "1837870290",
+            "코카콜라": baseUrl + "266954845"
+        };
 
-        let chartInstance = null;
-        let globalData = [];
+        // 데이터 캐싱을 위한 객체 (반복적인 네트워크 요청 방지)
+        const dataCache = {};
+        
+        // 차트 객체 변수
+        let myChart = null;
 
-        // 차트 렌더링을 위한 다이내믹 색상 팔레트 (골드, 블루, 퍼플, 등)
-        const colorPalette = [
-            { border: '#d4af37', bg: 'rgba(212, 175, 55, 0.1)' }, // Gold
-            { border: '#4facfe', bg: 'rgba(79, 172, 254, 0.1)' }, // Blue
-            { border: '#8E2DE2', bg: 'rgba(142, 45, 226, 0.1)' }, // Purple
-            { border: '#00e676', bg: 'rgba(0, 230, 118, 0.1)' },  // Light Green
-            { border: '#ff7eb3', bg: 'rgba(255, 126, 179, 0.1)' }, // Pink
-            { border: '#ff9a44', bg: 'rgba(255, 154, 68, 0.1)' }   // Orange
-        ];
+        // 2. 초기화 함수
+        async function init() {
+            populateSelects();
+            
+            const select1 = document.getElementById('stockSelect1');
+            const select2 = document.getElementById('stockSelect2');
 
-        async function loadData() {
-            try {
-                // 1. CORS 프록시를 통해 pubhtml HTML 소스를 가져와서 시트 목록(이름 및 gid)을 파싱합니다.
-                const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(pubhtmlUrl + "?t=" + Date.now())}`;
-                const response = await fetch(proxyUrl);
-                const htmlText = await response.text();
+            // 드롭다운 변경 시 대시보드 업데이트 이벤트 리스너 등록
+            select1.addEventListener('change', updateDashboard);
+            select2.addEventListener('change', updateDashboard);
 
-                const parser = new DOMParser();
-                const doc = parser.parseFromString(htmlText, "text/html");
-                const sheetItems = doc.querySelectorAll('li[id^="sheet-button-"]');
+            // 최초 화면 로드 시 초기 데이터 업데이트
+            await updateDashboard();
+        }
 
-                const sheets = [];
-                sheetItems.forEach(item => {
-                    const gid = item.id.replace('sheet-button-', '');
-                    const name = item.innerText.trim();
-                    sheets.push({ gid, name });
-                });
+        // 3. 드롭다운에 옵션 채우기
+        function populateSelects() {
+            const select1 = document.getElementById('stockSelect1');
+            const select2 = document.getElementById('stockSelect2');
+            
+            const stockNames = Object.keys(stockSources);
+            
+            stockNames.forEach((name, index) => {
+                const option1 = document.createElement('option');
+                option1.value = name;
+                option1.text = name;
+                select1.appendChild(option1);
 
-                if (sheets.length === 0) {
-                    throw new Error("시트 정보를 찾을 수 없습니다.");
+                const option2 = document.createElement('option');
+                option2.value = name;
+                option2.text = name;
+                select2.appendChild(option2);
+            });
+
+            // 기본 선택값 설정 (예: 삼성전자 vs 엔비디아)
+            select1.value = stockNames[0]; // 삼성전자
+            select2.value = stockNames[7]; // 엔비디아
+        }
+
+        // 4. 데이터 페칭 및 파싱 함수 (PapaParse 활용)
+        function fetchStockData(stockName) {
+            return new Promise((resolve, reject) => {
+                // 이미 데이터를 가져왔다면 캐시된 데이터 반환
+                if (dataCache[stockName]) {
+                    resolve(dataCache[stockName]);
+                    return;
                 }
 
-                // 2. 추출한 각각의 시트(gid)에 대해 CSV 데이터를 동시에 비동기로 가져옵니다.
-                const promises = sheets.map(sheet => {
-                    return new Promise((resolve, reject) => {
-                        const csvUrl = `${csvBaseUrl}?gid=${sheet.gid}&single=true&output=csv`;
-                        Papa.parse(csvUrl, {
-                            download: true,
-                            header: true,
-                            dynamicTyping: true,
-                            skipEmptyLines: true,
-                            complete: (results) => resolve(processStockData(results.data, sheet.name)),
-                            error: (error) => reject(error)
-                        });
-                    });
+                const url = stockSources[stockName];
+                
+                Papa.parse(url, {
+                    download: true,
+                    header: true,
+                    skipEmptyLines: true,
+                    complete: function(results) {
+                        try {
+                            const parsedData = processData(results.data);
+                            dataCache[stockName] = parsedData; // 캐시 저장
+                            resolve(parsedData);
+                        } catch (error) {
+                            console.error(`Error processing data for ${stockName}:`, error);
+                            reject(error);
+                        }
+                    },
+                    error: function(error) {
+                        console.error(`Error downloading data for ${stockName}:`, error);
+                        reject(error);
+                    }
                 });
+            });
+        }
 
-                const results = await Promise.all(promises);
-                // 유효한 데이터만 필터링
-                globalData = results.filter(data => data && data.prices.length > 0);
+        // 5. CSV 원본 데이터를 사용하기 편한 형태로 전처리
+        function processData(rawData) {
+            // 날짜순(오름차순)으로 정렬하기 위해 데이터를 배열에 담습니다.
+            let processed = [];
+            
+            rawData.forEach(row => {
+                // 키값이 Date/날짜, Close/종가 인지 대소문자 무관하게 파악
+                let dateStr = row['Date'] || row['date'] || row['날짜'] || Object.values(row)[0];
+                let closeStr = row['Close'] || row['close'] || row['종가'] || Object.values(row)[1];
 
-                // 3. 드롭다운 필터 및 대시보드 업데이트
-                populateDropdown(globalData);
-                updateDashboard();
+                if (dateStr && closeStr) {
+                    // 콤마 제거 후 숫자로 변환
+                    let price = parseFloat(String(closeStr).replace(/,/g, ''));
+                    // 날짜 변환 (유효성 검증)
+                    let date = new Date(dateStr);
+                    
+                    if (!isNaN(price) && !isNaN(date.getTime())) {
+                        processed.push({
+                            date: date,
+                            dateString: date.toISOString().split('T')[0], // YYYY-MM-DD 형식
+                            price: price
+                        });
+                    }
+                }
+            });
+
+            // 과거 -> 최신 순으로 날짜 오름차순 정렬
+            processed.sort((a, b) => a.date - b.date);
+            return processed;
+        }
+
+        // 숫자를 화폐 형식처럼 콤마를 찍어주는 유틸 함수
+        function formatNumber(num) {
+            // 소수점이 있으면 2자리까지, 없으면 정수로 콤마 표기
+            if (num % 1 !== 0) {
+                return num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+            }
+            return num.toLocaleString('en-US');
+        }
+
+        // 6. 대시보드 메인 업데이트 로직
+        async function updateDashboard() {
+            const stock1 = document.getElementById('stockSelect1').value;
+            const stock2 = document.getElementById('stockSelect2').value;
+            const loadingIndicator = document.getElementById('loadingIndicator');
+
+            try {
+                // 로딩 UI 표시
+                loadingIndicator.classList.remove('hidden');
+
+                // 두 종목의 데이터를 병렬로 가져옴
+                const [data1, data2] = await Promise.all([
+                    fetchStockData(stock1),
+                    fetchStockData(stock2)
+                ]);
+
+                // 1) 요약 카드 업데이트
+                updateCards(1, stock1, data1);
+                updateCards(2, stock2, data2);
+
+                // 2) 차트 업데이트
+                updateChart(stock1, data1, stock2, data2);
+
+                // 3) 수익률 테이블 업데이트
+                updateReturnTable(stock1, data1, stock2, data2);
 
             } catch (error) {
-                console.error("데이터 로딩 실패:", error);
-                document.getElementById('stockFilter').innerHTML = '<option value="">데이터를 불러오지 못했습니다</option>';
+                alert("데이터를 불러오는 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.");
+                console.error(error);
+            } finally {
+                // 로딩 UI 숨김
+                loadingIndicator.classList.add('hidden');
             }
         }
 
-        function processStockData(rawData, name) {
-            if (!rawData || rawData.length === 0) return null;
+        // 7. 요약 카드(현재가/최고가/최저가) 업데이트
+        function updateCards(cardIndex, stockName, data) {
+            document.getElementById(`card${cardIndex}Name`).innerText = stockName;
+
+            if (data.length === 0) {
+                document.getElementById(`card${cardIndex}Current`).innerText = "데이터 없음";
+                document.getElementById(`card${cardIndex}High`).innerText = "-";
+                document.getElementById(`card${cardIndex}Low`).innerText = "-";
+                return;
+            }
+
+            // 가장 마지막 데이터가 현재가
+            const currentPrice = data[data.length - 1].price;
             
-            const sortedData = rawData.sort((a, b) => new Date(a.Date) - new Date(b.Date));
-            const dates = sortedData.map(d => d.Date);
-            const prices = sortedData.map(d => d.Close);
-            
-            const current = prices[prices.length - 1] || 0;
-            const high = Math.max(...prices);
-            const low = Math.min(...prices);
-
-            return { name, dates, prices, current, high, low };
-        }
-
-        function populateDropdown(dataArray) {
-            const select = document.getElementById('stockFilter');
-            select.innerHTML = '<option value="all">전체 종목 비교</option>';
-            
-            dataArray.forEach(stock => {
-                const option = document.createElement('option');
-                option.value = stock.name;
-                option.textContent = stock.name;
-                select.appendChild(option);
+            // 최고/최저가 계산
+            let maxPrice = -Infinity;
+            let minPrice = Infinity;
+            data.forEach(item => {
+                if (item.price > maxPrice) maxPrice = item.price;
+                if (item.price < minPrice) minPrice = item.price;
             });
+
+            document.getElementById(`card${cardIndex}Current`).innerText = formatNumber(currentPrice);
+            document.getElementById(`card${cardIndex}High`).innerText = formatNumber(maxPrice);
+            document.getElementById(`card${cardIndex}Low`).innerText = formatNumber(minPrice);
         }
 
-        function formatCurrency(value) {
-            return Math.round(value).toLocaleString('ko-KR') + '원';
-        }
-
-        function calculateReturn(prices, daysAgo) {
-            if (prices.length < daysAgo) return null;
-            const current = prices[prices.length - 1];
-            const past = prices[prices.length - daysAgo];
-            return (((current - past) / past) * 100).toFixed(2);
-        }
-
-        function renderSummaryCards(selectedStocks) {
-            const container = document.getElementById('summaryCards');
-            container.innerHTML = '';
-
-            selectedStocks.forEach(stock => {
-                const cardHtml = `
-                    <div class="glass-card summary-box">
-                        <h2>${stock.name}</h2>
-                        <div class="price-grid">
-                            <div class="price-item">
-                                <h3>현재가</h3>
-                                <p>${formatCurrency(stock.current)}</p>
-                            </div>
-                            <div class="price-item">
-                                <h3>최고가</h3>
-                                <p>${formatCurrency(stock.high)}</p>
-                            </div>
-                            <div class="price-item">
-                                <h3>최저가</h3>
-                                <p>${formatCurrency(stock.low)}</p>
-                            </div>
-                        </div>
-                    </div>
-                `;
-                container.innerHTML += cardHtml;
-            });
-        }
-
-        function renderReturnsTable(selectedStocks) {
-            const tbody = document.getElementById('returnTableBody');
-            tbody.innerHTML = '';
-
-            selectedStocks.forEach(stock => {
-                // 1달(약 20거래일), 3달(60거래일), 6달(120거래일) 근사치
-                const r1m = calculateReturn(stock.prices, 20);
-                const r3m = calculateReturn(stock.prices, 60);
-                const r6m = calculateReturn(stock.prices, 120);
-
-                const formatRate = (rate) => {
-                    if (rate === null) return '-';
-                    const num = parseFloat(rate);
-                    const cls = num >= 0 ? 'positive' : 'negative';
-                    const sign = num > 0 ? '+' : '';
-                    return `<span class="${cls}">${sign}${rate}%</span>`;
-                };
-
-                const tr = `
-                    <tr>
-                        <td><strong>${stock.name}</strong></td>
-                        <td>${formatRate(r1m)}</td>
-                        <td>${formatRate(r3m)}</td>
-                        <td>${formatRate(r6m)}</td>
-                    </tr>
-                `;
-                tbody.innerHTML += tr;
-            });
-        }
-
-        function renderChart(selectedStocks) {
+        // 8. 차트 업데이트 로직
+        function updateChart(stock1, data1, stock2, data2) {
             const ctx = document.getElementById('priceChart').getContext('2d');
-            if (chartInstance) chartInstance.destroy();
 
-            const datasets = selectedStocks.map((stock, index) => {
-                const colorMap = colorPalette[index % colorPalette.length];
-                return {
-                    label: stock.name,
-                    data: stock.prices,
-                    borderColor: colorMap.border,
-                    backgroundColor: colorMap.bg,
-                    borderWidth: 2,
-                    pointRadius: 0,
-                    pointHoverRadius: 6,
-                    fill: true,
-                    tension: 0.3
-                };
-            });
+            // 두 데이터의 날짜 합집합 구하기 (X축 레이블 통일을 위해)
+            const dateSet = new Set();
+            data1.forEach(d => dateSet.add(d.dateString));
+            data2.forEach(d => dateSet.add(d.dateString));
+            
+            // 날짜 정렬
+            const sortedDates = Array.from(dateSet).sort((a, b) => new Date(a) - new Date(b));
 
-            // 기준 날짜 설정 (가장 긴 날짜 배열을 가진 종목 기준)
-            let commonDates = [];
-            if (selectedStocks.length > 0) {
-                const longestStock = selectedStocks.reduce((prev, current) => 
-                    (prev.dates.length > current.dates.length) ? prev : current
-                );
-                commonDates = longestStock.dates;
+            // 각 날짜에 해당하는 가격 매핑 (데이터가 없으면 null 처리)
+            const mapPriceToDate = (dataArray) => {
+                const priceMap = {};
+                dataArray.forEach(d => priceMap[d.dateString] = d.price);
+                return sortedDates.map(date => priceMap[date] !== undefined ? priceMap[date] : null);
+            };
+
+            const chartData1 = mapPriceToDate(data1);
+            const chartData2 = mapPriceToDate(data2);
+
+            // 기존 차트가 있으면 삭제 후 다시 그림 (캔버스 재사용 문제 방지)
+            if (myChart) {
+                myChart.destroy();
             }
 
-            chartInstance = new Chart(ctx, {
+            myChart = new Chart(ctx, {
                 type: 'line',
-                data: { labels: commonDates, datasets: datasets },
+                data: {
+                    labels: sortedDates,
+                    datasets: [
+                        {
+                            label: stock1,
+                            data: chartData1,
+                            borderColor: '#3b82f6', // Tailwind blue-500
+                            backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                            borderWidth: 2,
+                            pointRadius: 0,
+                            pointHoverRadius: 5,
+                            tension: 0.1 // 곡선 부드럽게
+                        },
+                        {
+                            label: stock2,
+                            data: chartData2,
+                            borderColor: '#f43f5e', // Tailwind rose-500
+                            backgroundColor: 'rgba(244, 63, 94, 0.1)',
+                            borderWidth: 2,
+                            pointRadius: 0,
+                            pointHoverRadius: 5,
+                            tension: 0.1
+                        }
+                    ]
+                },
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
+                    interaction: {
+                        mode: 'index',
+                        intersect: false,
+                    },
                     plugins: {
-                        legend: { labels: { color: '#f8f9fa' } },
-                        tooltip: { mode: 'index', intersect: false }
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    let label = context.dataset.label || '';
+                                    if (label) { label += ': '; }
+                                    if (context.parsed.y !== null) {
+                                        label += formatNumber(context.parsed.y);
+                                    }
+                                    return label;
+                                }
+                            }
+                        },
+                        legend: {
+                            position: 'top',
+                            labels: { usePointStyle: true, boxWidth: 8 }
+                        }
                     },
                     scales: {
-                        x: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#a0a0b0' } },
-                        y: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#a0a0b0' } }
-                    },
-                    interaction: {
-                        mode: 'nearest',
-                        axis: 'x',
-                        intersect: false
+                        x: {
+                            grid: { display: false },
+                            ticks: { maxTicksLimit: 10 } // X축 레이블 너무 많아지지 않게 조절
+                        },
+                        y: {
+                            // 두 종목의 가격 차이가 클 경우를 대비하여 좌우축을 분리할 수도 있지만,
+                            // 심플한 비교를 위해 단일 축 사용
+                            grid: { color: '#f3f4f6' }
+                        }
                     }
                 }
             });
         }
 
-        function filterData() {
-            updateDashboard();
-        }
+        // 9. 특정 기준일(daysAgo) 이전의 주가를 찾아 수익률 계산
+        function calculateReturnRate(data, daysAgo) {
+            if (!data || data.length < 2) return "-";
+            
+            const latestItem = data[data.length - 1];
+            const latestDate = new Date(latestItem.date);
+            
+            // 목표 과거 날짜 계산
+            const targetDate = new Date(latestDate);
+            targetDate.setDate(targetDate.getDate() - daysAgo);
 
-        function updateDashboard() {
-            const filterValue = document.getElementById('stockFilter').value;
-            let selectedStocks = [];
-
-            if (filterValue === 'all') {
-                selectedStocks = globalData;
-            } else {
-                const found = globalData.find(d => d.name === filterValue);
-                if (found) selectedStocks.push(found);
+            let pastPrice = null;
+            
+            // 데이터는 최신이 뒤에 있으므로 뒤에서부터 검색하여 목표 날짜와 같거나 이전인 가장 가까운 날의 가격을 찾음
+            for (let i = data.length - 1; i >= 0; i--) {
+                if (data[i].date <= targetDate) {
+                    pastPrice = data[i].price;
+                    break;
+                }
             }
 
-            renderSummaryCards(selectedStocks);
-            renderReturnsTable(selectedStocks);
-            renderChart(selectedStocks);
+            // 과거 데이터를 찾지 못했다면(데이터 기간이 짧은 경우) 최초 데이터 가격 사용
+            if (pastPrice === null) {
+                pastPrice = data[0].price;
+            }
+
+            if (pastPrice === 0) return "0.00%"; // 0으로 나누기 방지
+
+            const rate = ((latestItem.price - pastPrice) / pastPrice) * 100;
+            const sign = rate > 0 ? "+" : "";
+            
+            // 수익률에 따라 색상 클래스 적용을 위해 객체로 반환
+            return {
+                text: `${sign}${rate.toFixed(2)}%`,
+                isPositive: rate > 0,
+                isNegative: rate < 0
+            };
         }
 
-        // 스크립트 실행 시작
-        window.onload = loadData;
+        // 10. 테이블 행 생성 헬퍼 함수
+        function createTableRow(stockName, data, textColorClass) {
+            // 한 달을 대략 30일로 산정하여 계산
+            const rate1M = calculateReturnRate(data, 30);
+            const rate3M = calculateReturnRate(data, 90);
+            const rate6M = calculateReturnRate(data, 180);
+
+            // 수익률 색상 스타일링 함수
+            const getRateHtml = (rateObj) => {
+                if (rateObj === "-") return '<span class="text-gray-400">-</span>';
+                let colorClass = 'text-gray-600';
+                if (rateObj.isPositive) colorClass = 'text-red-500 font-medium'; // 한국/미국 주식 공통 상승색 느낌으로 조정 가능 (보통 한국은 빨강, 미국은 초록)
+                if (rateObj.isNegative) colorClass = 'text-blue-500 font-medium'; // 하락색
+                return `<span class="${colorClass}">${rateObj.text}</span>`;
+            };
+
+            return `
+                <tr class="border-b border-gray-100 hover:bg-gray-50 transition-colors">
+                    <td class="py-3 px-4 font-bold ${textColorClass}">${stockName}</td>
+                    <td class="py-3 px-4 text-right">${getRateHtml(rate1M)}</td>
+                    <td class="py-3 px-4 text-right">${getRateHtml(rate3M)}</td>
+                    <td class="py-3 px-4 text-right">${getRateHtml(rate6M)}</td>
+                </tr>
+            `;
+        }
+
+        // 11. 수익률 테이블 렌더링
+        function updateReturnTable(stock1, data1, stock2, data2) {
+            const tbody = document.getElementById('returnTableBody');
+            let html = "";
+            html += createTableRow(stock1, data1, "text-blue-600");
+            html += createTableRow(stock2, data2, "text-rose-600");
+            tbody.innerHTML = html;
+        }
+
+        // DOM이 모두 로드되면 init 함수 실행
+        window.addEventListener('DOMContentLoaded', init);
+
     </script>
 </body>
 </html>
