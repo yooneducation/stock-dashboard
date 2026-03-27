@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>윤에듀케이션 주식 포트폴리오 비교 대시보드</title>
+    <title>반도체 대장주 비교 대시보드</title>
     
     <!-- Tailwind CSS (모던하고 깔끔한 디자인을 위한 유틸리티 프레임워크) -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -147,7 +147,7 @@
     <!-- 푸터 (지정된 저작권 문구 포함) -->
     <footer class="bg-white border-t border-gray-200 py-6 mt-auto">
         <div class="container mx-auto text-center text-gray-500 text-sm">
-            © 2026 with dream consulting. All Rights Reserved.
+            © 2026 윤에듀케이션. All Rights Reserved.
         </div>
     </footer>
 
@@ -155,18 +155,19 @@
     <script>
         // 1. 데이터 소스 정의 (pubhtml 링크를 CSV 다운로드용 pub 형식으로 변환)
         // 사용자가 제공한 URL의 형식을 분석하여 자동으로 CSV Export URL로 구성합니다.
-        const baseUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQBj6JRux8kWW77YrxMFlNojH_oBEqjY7XgEcZkWsuWGgydF4W4BAf2dpMw7IwyWE3d6wZ3mNmiMwAe/pub?single=true&output=csv&gid=";
+        const baseUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQBj6JRux8kWW77YrxMFlNojH_oBEqjY7XgEcZkWsuWGgydF4W4BAf2dpMw7IwyWE3d6wZ3mNmiMwAe/pubhtml";
+        const csvBaseUrl = baseUrl.replace('/pubhtml', '/pub?single=true&output=csv&gid=');
         
         const stockSources = {
-            "삼성전자": baseUrl + "0",
-            "하이닉스": baseUrl + "14623856",
-            "현대차": baseUrl + "655549930",
-            "애플": baseUrl + "152264729",
-            "MS": baseUrl + "1203199159",
-            "구글": baseUrl + "663970395",
-            "테슬라": baseUrl + "39583950",
-            "엔비디아": baseUrl + "1837870290",
-            "코카콜라": baseUrl + "266954845"
+            "삼성전자": csvBaseUrl + "0",
+            "하이닉스": csvBaseUrl + "14623856",
+            "현대차": csvBaseUrl + "655549930",
+            "애플": csvBaseUrl + "152264729",
+            "MS": csvBaseUrl + "1203199159",
+            "구글": csvBaseUrl + "663970395",
+            "테슬라": csvBaseUrl + "39583950",
+            "엔비디아": csvBaseUrl + "1837870290",
+            "코카콜라": csvBaseUrl + "266954845"
         };
 
         // 데이터 캐싱을 위한 객체 (반복적인 네트워크 요청 방지)
