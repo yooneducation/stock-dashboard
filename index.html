@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>윤에듀케이션 주식 비교 대시보드</title>
+    <title>반도체 대장주 비교 대시보드</title>
     
     <!-- Tailwind CSS (모던하고 깔끔한 디자인을 위한 유틸리티 프레임워크) -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -153,10 +153,10 @@
 
     <!-- 기능 스크립트 -->
     <script>
-        // 1. 데이터 소스 정의 (pubhtml 링크를 CSV 다운로드용 pub 형식으로 변환)
-        // 사용자가 제공한 URL의 형식을 분석하여 자동으로 CSV Export URL로 구성합니다.
+        // 1. 데이터 소스 정의 
+        // /e/2PACX... 형식의 게시된 시트에서 CSV를 안정적으로 추출하기 위해 URL 형식을 수정했습니다.
         const baseUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQBj6JRux8kWW77YrxMFlNojH_oBEqjY7XgEcZkWsuWGgydF4W4BAf2dpMw7IwyWE3d6wZ3mNmiMwAe/pubhtml";
-        const csvBaseUrl = baseUrl.replace('/pubhtml', '/pub?single=true&output=csv&gid=');
+        const csvBaseUrl = baseUrl.replace('/pubhtml', '/pub?output=csv&single=true&gid=');
         
         const stockSources = {
             "삼성전자": csvBaseUrl + "0",
@@ -215,10 +215,9 @@
             select2.value = stockNames[7]; // 엔비디아
         }
 
-        // 4. 데이터 페칭 및 파싱 함수 (PapaParse 활용)
+        // 4. 데이터 페칭 및 파싱 함수 (PapaParse 내부 XHR 대신 Fetch API 활용으로 리디렉트 대응)
         function fetchStockData(stockName) {
-            return new Promise((resolve, reject) => {
-                // 이미 데이터를 가져왔다면 캐시된 데이터 반환
+            return new Promise(async (resolve, reject) => {
                 if (dataCache[stockName]) {
                     resolve(dataCache[stockName]);
                     return;
@@ -226,44 +225,85 @@
 
                 const url = stockSources[stockName];
                 
-                Papa.parse(url, {
-                    download: true,
-                    header: true,
-                    skipEmptyLines: true,
-                    complete: function(results) {
-                        try {
-                            const parsedData = processData(results.data);
-                            dataCache[stockName] = parsedData; // 캐시 저장
-                            resolve(parsedData);
-                        } catch (error) {
-                            console.error(`Error processing data for ${stockName}:`, error);
+                try {
+                    // Fetch API를 사용하여 데이터를 먼저 가져옴 (CORS 및 리디렉션 문제 완화)
+                    const response = await fetch(url);
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+                    const csvText = await response.text();
+
+                    // 가져온 텍스트 데이터를 PapaParse로 로컬 파싱
+                    Papa.parse(csvText, {
+                        header: true,
+                        skipEmptyLines: true,
+                        complete: function(results) {
+                            try {
+                                const parsedData = processData(results.data);
+                                if(parsedData.length === 0) {
+                                    console.warn(`${stockName} 데이터가 비어있습니다. 원본 시트를 확인해주세요.`);
+                                }
+                                dataCache[stockName] = parsedData; 
+                                resolve(parsedData);
+                            } catch (error) {
+                                console.error(`Error processing data for ${stockName}:`, error);
+                                reject(error);
+                            }
+                        },
+                        error: function(error) {
+                            console.error(`Error parsing data for ${stockName}:`, error);
                             reject(error);
                         }
-                    },
-                    error: function(error) {
-                        console.error(`Error downloading data for ${stockName}:`, error);
-                        reject(error);
-                    }
-                });
+                    });
+                } catch (error) {
+                    console.error(`Error fetching data for ${stockName}:`, error);
+                    reject(error);
+                }
             });
         }
 
-        // 5. CSV 원본 데이터를 사용하기 편한 형태로 전처리
+        // 5. CSV 원본 데이터를 사용하기 편한 형태로 전처리 (안정성 극대화)
         function processData(rawData) {
-            // 날짜순(오름차순)으로 정렬하기 위해 데이터를 배열에 담습니다.
             let processed = [];
             
             rawData.forEach(row => {
-                // 키값이 Date/날짜, Close/종가 인지 대소문자 무관하게 파악
-                let dateStr = row['Date'] || row['date'] || row['날짜'] || Object.values(row)[0];
-                let closeStr = row['Close'] || row['close'] || row['종가'] || Object.values(row)[1];
+                const keys = Object.keys(row);
+                const values = Object.values(row);
+                
+                if (values.length < 2) return; // 데이터가 너무 짧으면 무시
+
+                let dateStr = null;
+                let closeStr = null;
+
+                // 시도 1: 헤더 이름에서 날짜와 종가를 유추
+                for (let i = 0; i < keys.length; i++) {
+                    const key = keys[i].toLowerCase().trim();
+                    if (key.includes('date') || key.includes('날짜') || key.includes('일자')) {
+                        dateStr = values[i];
+                    }
+                    if (key.includes('close') || key.includes('종가') || key.includes('price') || key.includes('현재가') || key.includes('가격')) {
+                        closeStr = values[i];
+                    }
+                }
+
+                // 시도 2: 헤더 이름으로 찾지 못했다면 무조건 1번째를 날짜, 2번째를 가격으로 강제 사용
+                if (!dateStr || !closeStr) {
+                    dateStr = values[0];
+                    closeStr = values[1];
+                }
 
                 if (dateStr && closeStr) {
-                    // 콤마 제거 후 숫자로 변환
-                    let price = parseFloat(String(closeStr).replace(/,/g, ''));
-                    // 날짜 변환 (유효성 검증)
-                    let date = new Date(dateStr);
+                    // 숫자 변환: 콤마(,), 달러($), 원(₩) 등 특수문자 제거 후 파싱
+                    let priceStr = String(closeStr).replace(/[^0-9.-]+/g, '');
+                    let price = parseFloat(priceStr);
                     
+                    // 날짜 변환: 간혹 '2023. 01. 01' 형식이거나 뒤에 하이픈이 붙는 등 오류를 방지하기 위해 정제
+                    let cleanDateStr = String(dateStr).replace(/\./g, '-').replace(/\//g, '-').trim();
+                    if(cleanDateStr.endsWith('-')) cleanDateStr = cleanDateStr.slice(0, -1);
+                    
+                    let date = new Date(cleanDateStr);
+                    
+                    // 유효한 날짜와 가격인지 검증 후 푸시
                     if (!isNaN(price) && !isNaN(date.getTime())) {
                         processed.push({
                             date: date,
@@ -276,12 +316,22 @@
 
             // 과거 -> 최신 순으로 날짜 오름차순 정렬
             processed.sort((a, b) => a.date - b.date);
-            return processed;
+            
+            // 만약 동일한 날짜 데이터가 여러 개 있다면 최신 데이터로 필터링
+            const uniqueProcessed = [];
+            const seenDates = new Set();
+            for (let i = processed.length - 1; i >= 0; i--) {
+                if (!seenDates.has(processed[i].dateString)) {
+                    seenDates.add(processed[i].dateString);
+                    uniqueProcessed.unshift(processed[i]);
+                }
+            }
+
+            return uniqueProcessed;
         }
 
         // 숫자를 화폐 형식처럼 콤마를 찍어주는 유틸 함수
         function formatNumber(num) {
-            // 소수점이 있으면 2자리까지, 없으면 정수로 콤마 표기
             if (num % 1 !== 0) {
                 return num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
             }
@@ -315,8 +365,8 @@
                 updateReturnTable(stock1, data1, stock2, data2);
 
             } catch (error) {
-                alert("데이터를 불러오는 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.");
                 console.error(error);
+                // alert("데이터를 불러오는 중 오류가 발생했습니다.");
             } finally {
                 // 로딩 UI 숨김
                 loadingIndicator.classList.add('hidden');
@@ -327,7 +377,7 @@
         function updateCards(cardIndex, stockName, data) {
             document.getElementById(`card${cardIndex}Name`).innerText = stockName;
 
-            if (data.length === 0) {
+            if (!data || data.length === 0) {
                 document.getElementById(`card${cardIndex}Current`).innerText = "데이터 없음";
                 document.getElementById(`card${cardIndex}High`).innerText = "-";
                 document.getElementById(`card${cardIndex}Low`).innerText = "-";
@@ -435,8 +485,6 @@
                             ticks: { maxTicksLimit: 10 } // X축 레이블 너무 많아지지 않게 조절
                         },
                         y: {
-                            // 두 종목의 가격 차이가 클 경우를 대비하여 좌우축을 분리할 수도 있지만,
-                            // 심플한 비교를 위해 단일 축 사용
                             grid: { color: '#f3f4f6' }
                         }
                     }
@@ -465,7 +513,7 @@
                 }
             }
 
-            // 과거 데이터를 찾지 못했다면(데이터 기간이 짧은 경우) 최초 데이터 가격 사용
+            // 과거 데이터를 찾지 못했다면 최초 데이터 가격 사용
             if (pastPrice === null) {
                 pastPrice = data[0].price;
             }
@@ -485,7 +533,6 @@
 
         // 10. 테이블 행 생성 헬퍼 함수
         function createTableRow(stockName, data, textColorClass) {
-            // 한 달을 대략 30일로 산정하여 계산
             const rate1M = calculateReturnRate(data, 30);
             const rate3M = calculateReturnRate(data, 90);
             const rate6M = calculateReturnRate(data, 180);
@@ -494,8 +541,8 @@
             const getRateHtml = (rateObj) => {
                 if (rateObj === "-") return '<span class="text-gray-400">-</span>';
                 let colorClass = 'text-gray-600';
-                if (rateObj.isPositive) colorClass = 'text-red-500 font-medium'; // 한국/미국 주식 공통 상승색 느낌으로 조정 가능 (보통 한국은 빨강, 미국은 초록)
-                if (rateObj.isNegative) colorClass = 'text-blue-500 font-medium'; // 하락색
+                if (rateObj.isPositive) colorClass = 'text-red-500 font-medium'; 
+                if (rateObj.isNegative) colorClass = 'text-blue-500 font-medium'; 
                 return `<span class="${colorClass}">${rateObj.text}</span>`;
             };
 
